@@ -94,15 +94,21 @@ export default function SETDigest() {
     return () => clearInterval(countdownRef.current);
   }, []);
 
+  const cleanDigest = (text) => text
+    .split(/\n\n+/)
+    .map(p => p.replace(/\n/g, " ").replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n\n");
+
   const handleCopy = () => {
-    navigator.clipboard.writeText(digest).then(() => {
+    navigator.clipboard.writeText(cleanDigest(digest)).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
   };
 
   const handlePost = (url, label) => {
-    navigator.clipboard.writeText(digest).then(() => {
+    navigator.clipboard.writeText(cleanDigest(digest)).then(() => {
       setOpenedAdmin(label);
       setTimeout(() => setOpenedAdmin(null), 3000);
       window.open(url, "_blank");
@@ -236,12 +242,16 @@ export default function SETDigest() {
               }}>{copied ? "✓ Copied" : "Copy"}</button>
             </div>
             <div style={{ padding: "22px" }}>
-              {digest.split(/\n\n+/).map((para, i) => (
-                <p key={i} style={{
-                  margin: i < digest.split(/\n\n+/).length - 1 ? "0 0 14px" : "0",
-                  fontSize: "14px", lineHeight: "1.85", color: "#cdd8ea",
-                }}>{para.trim()}</p>
-              ))}
+              {digest
+                .split(/\n\n+/)
+                .map(para => para.replace(/\n/g, " ").replace(/\s+/g, " ").trim())
+                .filter(Boolean)
+                .map((para, i, arr) => (
+                  <p key={i} style={{
+                    margin: i < arr.length - 1 ? "0 0 14px" : "0",
+                    fontSize: "14px", lineHeight: "1.85", color: "#cdd8ea",
+                  }}>{para}</p>
+                ))}
             </div>
           </div>
         )}
