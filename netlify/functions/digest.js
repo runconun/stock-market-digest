@@ -33,17 +33,20 @@ exports.handler = async (event) => {
 Your task:
 1. Search ryt9.com ONLY for the article titled "ภาวะตลาดหุ้นไทย" published on ${date}. Use exactly this search query: site:ryt9.com ภาวะตลาดหุ้นไทย ${date}
 2. Extract SET Index closing data and market commentary from that article.
-3. Translate into a polished English digest in EXACTLY this format — three plain paragraphs, no headers, no bullets, no markdown:
+3. Translate into a polished English digest.
+
+CRITICAL OUTPUT RULES — strictly follow these:
+- Output ONLY the three paragraphs below. No preamble, no "I found...", no "Based on...", no explanation before or after.
+- Start your response immediately with "The SET Index closed on..."
+- Three plain paragraphs separated by a blank line. No headers, no bullets, no markdown.
 
 Paragraph 1: "The SET Index closed on [Day Month, Year] at [price] points, [up/down] [change] points ([+/-percentage]%), with a trading value of approximately THB [value] million."
+Paragraph 2: What drove the market that day (sectors, sentiment, global cues). 2–4 sentences.
+Paragraph 3: Forward-looking commentary — sector rotation, risks, themes to watch. 2–4 sentences.
 
-Paragraph 2: What drove the market that day (sectors, sentiment, global cues).
+Style: formal yet accessible, spell out abbreviations on first use e.g. artificial intelligence (AI), use THB for Baht.
 
-Paragraph 3: Forward-looking commentary — sector rotation, risks, themes to watch.
-
-Style: formal yet accessible, spell out abbreviations first use e.g. artificial intelligence (AI), use THB for Baht, 2–4 sentences per paragraph.
-
-If no article found, respond with exactly: NO_DATA_TODAY`,
+If no closing article found, output exactly: NO_DATA_TODAY`,
         messages: [
           {
             role: "user",
@@ -62,11 +65,15 @@ If no article found, respond with exactly: NO_DATA_TODAY`,
       };
     }
 
-    const text = data.content
+    const rawText = data.content
       .filter(b => b.type === "text")
       .map(b => b.text)
       .join("\n")
       .trim();
+
+    // Strip any preamble before "The SET Index"
+    const setIndex = rawText.indexOf("The SET Index");
+    const text = setIndex > 0 ? rawText.slice(setIndex).trim() : rawText;
 
     return {
       statusCode: 200,
