@@ -1,13 +1,22 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
-const getBangkokDate = () => {
-  return new Date().toLocaleDateString("en-GB", {
-    day: "2-digit", month: "long", year: "numeric", timeZone: "Asia/Bangkok"
-  });
+const getBangkokTime = () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
+
+const formatDateForDisplay = (date) => date.toLocaleDateString("en-GB", {
+  day: "2-digit", month: "long", year: "numeric"
+});
+
+const formatDateForInput = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 };
 
-const getBangkokTime = () => {
-  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
+const inputToDisplay = (val) => {
+  const [y, m, d] = val.split("-");
+  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  return `${d} ${months[parseInt(m)-1]} ${y}`;
 };
 
 const getNextFetchTime = () => {
@@ -25,17 +34,19 @@ export default function SETDigest() {
   const [copied, setCopied] = useState(false);
   const [countdown, setCountdown] = useState("");
   const [autoFetchEnabled, setAutoFetchEnabled] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(formatDateForInput(getBangkokTime()));
   const timerRef = useRef(null);
   const countdownRef = useRef(null);
 
-  const fetchDigest = useCallback(async () => {
+  const fetchDigest = useCallback(async (dateStr) => {
     setStatus("loading");
     setDigest("");
+    const displayDate = inputToDisplay(dateStr);
     try {
       const res = await fetch("/.netlify/functions/digest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: getBangkokDate() })
+        body: JSON.stringify({ date: displayDate })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Server error");
@@ -44,7 +55,7 @@ export default function SETDigest() {
       } else {
         setDigest(data.text);
         setStatus("success");
-        setLastFetched(getBangkokDate());
+        setLastFetched(displayDate);
       }
     } catch (err) {
       console.error(err);
@@ -52,12 +63,17 @@ export default function SETDigest() {
     }
   }, []);
 
-  // Auto-fetch scheduler
+  // Auto-fetch scheduler (always uses today)
   useEffect(() => {
     if (!autoFetchEnabled) { clearTimeout(timerRef.current); return; }
     const schedule = () => {
       const ms = getNextFetchTime() - getBangkokTime();
-      timerRef.current = setTimeout(() => { fetchDigest(); schedule(); }, ms);
+      timerRef.current = setTimeout(() => {
+        const today = formatDateForInput(getBangkokTime());
+        setSelectedDate(today);
+        fetchDigest(today);
+        schedule();
+      }, ms);
     };
     schedule();
     return () => clearTimeout(timerRef.current);
@@ -117,7 +133,7 @@ export default function SETDigest() {
           </div>
         </div>
         <div style={{ fontSize: "12px", color: "#6b7fa3" }}>
-          Bangkok · {getBangkokDate()} · {timeStr}
+          Bangkok · {formatDateForDisplay(now)} · {timeStr}
         </div>
       </div>
 
@@ -153,20 +169,38 @@ export default function SETDigest() {
           </div>
         </div>
 
-        {/* Fetch button */}
-        <button onClick={fetchDigest} disabled={status === "loading"} style={{
-          width: "100%", padding: "13px",
-          background: status === "loading" ? "rgba(255,255,255,0.05)" : "linear-gradient(135deg, #1a6b4a, #2d9a6e)",
-          border: "none", borderRadius: "10px",
-          color: status === "loading" ? "#6b7fa3" : "#fff",
-          fontSize: "13px", fontWeight: "600", cursor: status === "loading" ? "not-allowed" : "pointer",
-          marginBottom: "20px",
-          display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
-        }}>
-          {status === "loading" ? (
-            <><span style={{ animation: "spin 1s linear infinite", display: "inline-block" }}>⟳</span> Searching & translating…</>
-          ) : "⬇  Fetch Today's Digest"}
-        </button>
+        {/* Date picker + Fetch button */}
+        <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={e => setSelectedDate(e.target.value)}
+            max={formatDateForInput(getBangkokTime())}
+            style={{
+              padding: "13px 14px", borderRadius: "10px",
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              color: "#e8edf5", fontSize: "13px",
+              cursor: "pointer", outline: "none",
+              colorScheme: "dark",
+            }}
+          />
+          <button
+            onClick={() => fetchDigest(selectedDate)}
+            disabled={status === "loading"}
+            style={{
+              flex: 1, padding: "13px",
+              background: status === "loading" ? "rgba(255,255,255,0.05)" : "linear-gradient(135deg, #1a6b4a, #2d9a6e)",
+              border: "none", borderRadius: "10px",
+              color: status === "loading" ? "#6b7fa3" : "#fff",
+              fontSize: "13px", fontWeight: "600", cursor: status === "loading" ? "not-allowed" : "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+            }}>
+            {status === "loading" ? (
+              <><span style={{ animation: "spin 1s linear infinite", display: "inline-block" }}>⟳</span> Searching ryt9…</>
+            ) : "⬇  Fetch Digest"}
+          </button>
+        </div>
 
         {/* Result */}
         {status === "success" && digest && (
@@ -192,7 +226,7 @@ export default function SETDigest() {
                 fontSize: "11px", fontWeight: "600", cursor: "pointer", transition: "all 0.2s",
               }}>{copied ? "✓ Copied" : "Copy"}</button>
             </div>
-            <div style={{ padding: "22px 22px" }}>
+            <div style={{ padding: "22px" }}>
               {digest.split(/\n\n+/).map((para, i) => (
                 <p key={i} style={{
                   margin: i < digest.split(/\n\n+/).length - 1 ? "0 0 14px" : "0",
@@ -209,9 +243,9 @@ export default function SETDigest() {
             background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px",
           }}>
             <div style={{ fontSize: "28px", marginBottom: "10px" }}>🕐</div>
-            <div style={{ fontSize: "13px", color: "#8a9bb8", fontWeight: "500" }}>No closing data found yet for today</div>
+            <div style={{ fontSize: "13px", color: "#8a9bb8", fontWeight: "500" }}>No data found for {inputToDisplay(selectedDate)}</div>
             <div style={{ fontSize: "11px", color: "#3a4558", marginTop: "5px" }}>
-              Market closes 17:00 · News available after 17:30 ICT
+              Market closes 17:00 · News available after 17:30 ICT · Weekdays only
             </div>
           </div>
         )}
@@ -233,13 +267,13 @@ export default function SETDigest() {
             background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.07)", borderRadius: "12px",
           }}>
             <div style={{ fontSize: "12px", color: "#3a4558" }}>
-              Press Fetch to generate today's digest, or wait for auto-fetch after 17:30 ICT
+              Select a date and press Fetch · Auto-fetch runs daily at 17:30 ICT
             </div>
           </div>
         )}
 
         <div style={{ marginTop: "14px", fontSize: "10px", color: "#1e2a3a", textAlign: "center" }}>
-          Keyword: ภาวะตลาดหุ้นไทย · Sources: ryt9.com & Thai financial news · Auto 17:30 ICT
+          Source: ryt9.com · Keyword: ภาวะตลาดหุ้นไทย · Auto 17:30 ICT
         </div>
       </div>
 
