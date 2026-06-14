@@ -32,6 +32,7 @@ export default function SETDigest() {
   const [status, setStatus] = useState("idle");
   const [lastFetched, setLastFetched] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [openedAdmin, setOpenedAdmin] = useState(null);
   const [countdown, setCountdown] = useState("");
   const [autoFetchEnabled, setAutoFetchEnabled] = useState(true);
   const [selectedDate, setSelectedDate] = useState(formatDateForInput(getBangkokTime()));
@@ -97,6 +98,14 @@ export default function SETDigest() {
     navigator.clipboard.writeText(digest).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const handlePost = (url, label) => {
+    navigator.clipboard.writeText(digest).then(() => {
+      setOpenedAdmin(label);
+      setTimeout(() => setOpenedAdmin(null), 3000);
+      window.open(url, "_blank");
     });
   };
 
@@ -234,6 +243,38 @@ export default function SETDigest() {
                 }}>{para.trim()}</p>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Post buttons — shown only when digest is ready */}
+        {status === "success" && digest && (
+          <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
+            <button
+              onClick={() => handlePost("https://ir.stockradars.co/ir-ptt-console/content", "admin")}
+              style={{
+                flex: 1, padding: "11px 14px", borderRadius: "10px",
+                background: openedAdmin === "admin" ? "rgba(59,130,246,0.2)" : "rgba(59,130,246,0.08)",
+                border: `1px solid ${openedAdmin === "admin" ? "rgba(59,130,246,0.5)" : "rgba(59,130,246,0.2)"}`,
+                color: openedAdmin === "admin" ? "#93c5fd" : "#7aabf7",
+                fontSize: "12px", fontWeight: "600", cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+                transition: "all 0.2s",
+              }}>
+              {openedAdmin === "admin" ? "✓ Copied & Opened" : "↗ Post to Stock Radar Admin"}
+            </button>
+            <button
+              onClick={() => handlePost("https://ir.stockradars.co/ir-ptt-group-console/message", "mgmt")}
+              style={{
+                flex: 1, padding: "11px 14px", borderRadius: "10px",
+                background: openedAdmin === "mgmt" ? "rgba(168,85,247,0.2)" : "rgba(168,85,247,0.08)",
+                border: `1px solid ${openedAdmin === "mgmt" ? "rgba(168,85,247,0.5)" : "rgba(168,85,247,0.2)"}`,
+                color: openedAdmin === "mgmt" ? "#d8b4fe" : "#c084fc",
+                fontSize: "12px", fontWeight: "600", cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+                transition: "all 0.2s",
+              }}>
+              {openedAdmin === "mgmt" ? "✓ Copied & Opened" : "↗ Post to Stock Radar Management"}
+            </button>
           </div>
         )}
 
