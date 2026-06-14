@@ -22,12 +22,17 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         model: "claude-sonnet-4-5",
         max_tokens: 1024,
-        tools: [{ type: "web_search_20250305", name: "web_search" }],
+        tools: [{
+          type: "web_search_20250305",
+          name: "web_search",
+          max_uses: 1,
+          allowed_domains: ["ryt9.com"]
+        }],
         system: `You are a professional financial translator specializing in Thai capital markets.
 
 Your task:
-1. Search for Thai stock market closing news today using keyword "ภาวะตลาดหุ้นไทย" from ryt9.com or Thai financial news sources published after 17:00 Bangkok time today.
-2. Extract SET Index closing data and market commentary.
+1. Search ryt9.com ONLY for the article titled "ภาวะตลาดหุ้นไทย" published on ${date}. Use exactly this search query: site:ryt9.com ภาวะตลาดหุ้นไทย ${date}
+2. Extract SET Index closing data and market commentary from that article.
 3. Translate into a polished English digest in EXACTLY this format — three plain paragraphs, no headers, no bullets, no markdown:
 
 Paragraph 1: "The SET Index closed on [Day Month, Year] at [price] points, [up/down] [change] points ([+/-percentage]%), with a trading value of approximately THB [value] million."
@@ -38,11 +43,11 @@ Paragraph 3: Forward-looking commentary — sector rotation, risks, themes to wa
 
 Style: formal yet accessible, spell out abbreviations first use e.g. artificial intelligence (AI), use THB for Baht, 2–4 sentences per paragraph.
 
-If no closing data found for today, respond with exactly the word: NO_DATA_TODAY`,
+If no article found, respond with exactly: NO_DATA_TODAY`,
         messages: [
           {
             role: "user",
-            content: `Today is ${date} (Bangkok time). Search for today's Thai stock market closing news and produce the English digest.`
+            content: `Search ryt9.com for the Thai stock market closing news published on ${date} and produce the English digest.`
           }
         ]
       })
