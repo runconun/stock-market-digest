@@ -1,3 +1,5 @@
+const { getStore } = require("@netlify/blobs");
+
 exports.handler = async (event) => {
   if (event.httpMethod !== "POST") {
     return { statusCode: 405, body: "Method Not Allowed" };
@@ -10,7 +12,28 @@ exports.handler = async (event) => {
 
   try {
     const { date } = JSON.parse(event.body);
+    const cacheKey = `digest-${date.replace(/\s+/g, "-")}`;
 
+    // Check cache first
+    const store = getStore("digests");
+    try {
+      const cached = await store.get(cacheKey);
+      if (cached) {
+        return {
+          statusCode: 200,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: cached, fromCache: true })
+        };
+      }
+    } catch (e) {}
+
+    // Step 1: Fetch ryt9.com/stock-latest directly
+    const ryt9Res = await fetch("https://www.ryt9.com/stock-latest", {
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
+    });
+    const ryt9Html = await ryt9Res.text();
+
+    // Step 2: Send HTML to Claude to find the article URL and extract content
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -30,15 +53,10 @@ exports.handler = async (event) => {
         }],
         system: `You are a professional financial translator specializing in Thai capital markets.
 
-Your task:
-1. Search ryt9.com ONLY for the article titled "ภาวะตลาดหุ้นไทย" published on ${date}. Use exactly this search query: site:ryt9.com ภาวะตลาดหุ้นไทย ${date}
-2. Extract SET Index closing data and market commentary from that article.
-3. Translate into a polished English digest.
-
-CRITICAL OUTPUT RULES — strictly follow these:
-- Output ONLY the three paragraphs below. No preamble, no "I found...", no "Based on...", no explanation before or after.
-- Start your response immediately with "The SET Index closed on..."
-- Three plain paragraphs separated by a blank line. No headers, no bullets, no markdown.
+CRITICAL OUTPUT RULES:
+- Output ONLY three plain paragraphs. No preamble, no "I found...", no explanation.
+- Start immediately with "The SET Index closed on..."
+- Three paragraphs separated by a blank line. No headers, no bullets, no markdown.
 
 Paragraph 1: "The SET Index closed on [Day Month, Year] at [price] points, [up/down] [change] points ([+/-percentage]%), with a trading value of approximately THB [value] million."
 Paragraph 2: What drove the market that day (sectors, sentiment, global cues). 2–4 sentences.
@@ -46,45 +64,38 @@ Paragraph 3: Forward-looking commentary — sector rotation, risks, themes to wa
 
 Style: formal yet accessible, spell out abbreviations on first use e.g. artificial intelligence (AI), use THB for Baht.
 
-If no closing article found, output exactly: NO_DATA_TODAY`,
-        messages: [
-          {
-            role: "user",
-            content: `Search ryt9.com for the Thai stock market closing news published on ${date} and produce the English digest.`
-          }
-        ]
+If no closing data found for ${date}, output exactly: NO_DATA_TODAY`,
+        messages: [{
+          role: "user",
+          content: `Here is the HTML from ryt9.com/stock-latest page. Find the article about "ภาวะตลาดหุ้นไทย" published on ${date}, then fetch that article URL from ryt9.com and translate it into the English digest.
+
+HTML content:
+${ryt9Html.slice(0, 8000)}`
+        }]
       })
     });
 
     const data = await response.json();
-
     if (!response.ok) {
-      return {
-        statusCode: response.status,
-        body: JSON.stringify({ error: data.error?.message || "Anthropic API error" })
-      };
+      return { statusCode: response.status, body: JSON.stringify({ error: data.error?.message || "Anthropic API error" }) };
     }
 
-    const rawText = data.content
-      .filter(b => b.type === "text")
-      .map(b => b.text)
-      .join("\n")
-      .trim();
+    const rawText = data.content.filter(b => b.type === "text").map(b => b.text).join("\n").trim();
+    const setIdx = rawText.indexOf("The SET Index");
+    const text = setIdx > 0 ? rawText.slice(setIdx).trim() : rawText;
 
-    // Strip any preamble before "The SET Index"
-    const setIndex = rawText.indexOf("The SET Index");
-    const text = setIndex > 0 ? rawText.slice(setIndex).trim() : rawText;
+    // Save to cache
+    if (text !== "NO_DATA_TODAY" && !text.includes("NO_DATA_TODAY")) {
+      try { await store.set(cacheKey, text); } catch(e) {}
+    }
 
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text })
+      body: JSON.stringify({ text, fromCache: false })
     };
 
   } catch (err) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: err.message })
-    };
+    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   }
 };
