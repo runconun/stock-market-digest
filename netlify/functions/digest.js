@@ -1,4 +1,4 @@
-const { getStore } = require("@netlify/blobs");
+const cache = {};
 
 exports.handler = async (event) => {
   if (event.httpMethod !== "POST") {
@@ -14,18 +14,14 @@ exports.handler = async (event) => {
     const { date } = JSON.parse(event.body);
     const cacheKey = `digest-${date.replace(/\s+/g, "-")}`;
 
-    // Check cache first
-    const store = getStore("digests");
-    try {
-      const cached = await store.get(cacheKey);
-      if (cached) {
-        return {
-          statusCode: 200,
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: cached, fromCache: true })
-        };
-      }
-    } catch (e) {}
+    // Check in-memory cache
+    if (cache[cacheKey]) {
+      return {
+        statusCode: 200,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: cache[cacheKey], fromCache: true })
+      };
+    }
 
     // Step 1: Fetch ryt9.com/stock-latest directly
     const ryt9Res = await fetch("https://www.ryt9.com/stock-latest", {
@@ -84,9 +80,9 @@ ${ryt9Html.slice(0, 8000)}`
     const setIdx = rawText.indexOf("The SET Index");
     const text = setIdx > 0 ? rawText.slice(setIdx).trim() : rawText;
 
-    // Save to cache
+    // Save to in-memory cache
     if (text !== "NO_DATA_TODAY" && !text.includes("NO_DATA_TODAY")) {
-      try { await store.set(cacheKey, text); } catch(e) {}
+      cache[cacheKey] = text;
     }
 
     return {
