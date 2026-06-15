@@ -29,6 +29,7 @@ const getNextFetchTime = () => {
 
 export default function SETDigest() {
   const [digest, setDigest] = useState("");
+  const [fromCache, setFromCache] = useState(false);
   const [status, setStatus] = useState("idle");
   const [lastFetched, setLastFetched] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -55,6 +56,7 @@ export default function SETDigest() {
         setStatus("no_data");
       } else {
         setDigest(data.text);
+        setFromCache(data.fromCache || false);
         setStatus("success");
         setLastFetched(displayDate);
       }
@@ -230,7 +232,7 @@ export default function SETDigest() {
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#2d9a6e", boxShadow: "0 0 5px #2d9a6e" }} />
                 <span style={{ fontSize: "11px", color: "#8a9bb8", fontWeight: "500" }}>
-                  SET Close · {lastFetched}
+                  SET Close · {lastFetched} {fromCache && <span style={{ color: "#2d9a6e" }}>· ⚡ cached</span>}
                 </span>
               </div>
               <button onClick={handleCopy} style={{
