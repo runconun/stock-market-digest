@@ -22,45 +22,30 @@ exports.handler = async (event) => {
       };
     }
 
-    // Step 1: Fetch ryt9 stock-latest page
-    const listRes = await fetch("https://www.ryt9.com/stock-latest", {
+    // Step 1: Fetch ryt9 tag page for ภาวะตลาดหุ้นไทย directly
+    const tagUrl = "https://www.ryt9.com/tag/%E0%B8%A0%E0%B8%B2%E0%B8%A7%E0%B8%B0%E0%B8%95%E0%B8%A5%E0%B8%B2%E0%B8%94%E0%B8%AB%E0%B8%B8%E0%B9%89%E0%B8%99%E0%B9%84%E0%B8%97%E0%B8%A2:";
+    const listRes = await fetch(tagUrl, {
       headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
     });
     const listHtml = await listRes.text();
 
-    // Step 2: Extract link containing "ภาวะตลาดหุ้นไทย" - prefer closing session (after 17:00)
-    // Look for links with time indicators for closing session
+    // Step 2: Extract first article link from tag page
     const allLinks = [];
-    const linkPattern = /href="((?:https?:\/\/www\.ryt9\.com)?\/s\/[^"]+)"[^>]*>[\s\S]{0,200}?ภาวะตลาดหุ้นไทย/gi;
-    let m;
-    while ((m = linkPattern.exec(listHtml)) !== null) {
-      const url = m[1].startsWith("http") ? m[1] : "https://www.ryt9.com" + m[1];
-      allLinks.push(url);
-    }
+    const patterns = [
+      /href="(https?:\/\/www\.ryt9\.com\/s\/[^"]+)"/gi,
+      /href="(\/s\/[^"]+)"/gi
+    ];
 
-    // Also try simpler pattern
-    if (allLinks.length === 0) {
-      const simplePattern = /href="((?:https?:\/\/www\.ryt9\.com)?\/s\/iq[^"]+)"/gi;
-      const textAround = listHtml.indexOf("ภาวะตลาดหุ้นไทย");
-      if (textAround > -1) {
-        const chunk = listHtml.slice(Math.max(0, textAround - 500), textAround + 100);
-        const sm = simplePattern.exec(chunk);
-        if (sm) allLinks.push(sm[1].startsWith("http") ? sm[1] : "https://www.ryt9.com" + sm[1]);
+    for (const pattern of patterns) {
+      let m;
+      while ((m = pattern.exec(listHtml)) !== null) {
+        const url = m[1].startsWith("http") ? m[1] : "https://www.ryt9.com" + m[1];
+        if (!allLinks.includes(url)) allLinks.push(url);
       }
+      if (allLinks.length > 0) break;
     }
 
     let articleUrl = allLinks.length > 0 ? allLinks[0] : null;
-
-    // Step 3: If not found in list, try tag page
-    if (!articleUrl) {
-      const tagRes = await fetch("https://www.ryt9.com/tag/ภาวะตลาดหุ้นไทย:", {
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
-      });
-      const tagHtml = await tagRes.text();
-      const tagRegex = /href="(https?:\/\/www\.ryt9\.com\/s\/[^"]+)"/gi;
-      match = tagRegex.exec(tagHtml);
-      if (match) articleUrl = match[1];
-    }
 
     if (!articleUrl) {
       return {
