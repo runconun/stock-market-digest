@@ -61,7 +61,20 @@ exports.handler = async (event) => {
     });
     const articleHtml = await articleRes.text();
 
-    // Step 5: Send article to Claude for translation only (no search needed)
+    // Step 5: Strip HTML to plain text before sending to Claude
+    const plainText = articleHtml
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 5000);
+
+    // Step 6: Send plain text to Claude for translation only (no search needed)
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -97,7 +110,7 @@ Style rules:
 If no closing data found in article, output exactly: NO_DATA_TODAY`,
         messages: [{
           role: "user",
-          content: `Translate this Thai stock market article into the English digest format:\n\n${articleHtml.slice(0, 6000)}`
+          content: `Translate this Thai stock market article into the English digest format. This is the COMPLETE article text — translate ONLY what is written here, nothing more:\n\n${plainText}`
         }]
       })
     });
