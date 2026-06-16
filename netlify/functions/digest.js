@@ -28,18 +28,28 @@ exports.handler = async (event) => {
     });
     const listHtml = await listRes.text();
 
-    // Step 2: Extract link containing "ภาวะตลาดหุ้นไทย"
-    const linkRegex = /href="(https?:\/\/www\.ryt9\.com\/s\/[^"]+)"[^>]*>[^<]*ภาวะตลาดหุ้นไทย/gi;
-    const altRegex = /href="(\/s\/[^"]+)"[^>]*>[^<]*ภาวะตลาดหุ้นไทย/gi;
-
-    let articleUrl = null;
-    let match = linkRegex.exec(listHtml);
-    if (match) {
-      articleUrl = match[1];
-    } else {
-      match = altRegex.exec(listHtml);
-      if (match) articleUrl = "https://www.ryt9.com" + match[1];
+    // Step 2: Extract link containing "ภาวะตลาดหุ้นไทย" - prefer closing session (after 17:00)
+    // Look for links with time indicators for closing session
+    const allLinks = [];
+    const linkPattern = /href="((?:https?:\/\/www\.ryt9\.com)?\/s\/[^"]+)"[^>]*>[\s\S]{0,200}?ภาวะตลาดหุ้นไทย/gi;
+    let m;
+    while ((m = linkPattern.exec(listHtml)) !== null) {
+      const url = m[1].startsWith("http") ? m[1] : "https://www.ryt9.com" + m[1];
+      allLinks.push(url);
     }
+
+    // Also try simpler pattern
+    if (allLinks.length === 0) {
+      const simplePattern = /href="((?:https?:\/\/www\.ryt9\.com)?\/s\/iq[^"]+)"/gi;
+      const textAround = listHtml.indexOf("ภาวะตลาดหุ้นไทย");
+      if (textAround > -1) {
+        const chunk = listHtml.slice(Math.max(0, textAround - 500), textAround + 100);
+        const sm = simplePattern.exec(chunk);
+        if (sm) allLinks.push(sm[1].startsWith("http") ? sm[1] : "https://www.ryt9.com" + sm[1]);
+      }
+    }
+
+    let articleUrl = allLinks.length > 0 ? allLinks[0] : null;
 
     // Step 3: If not found in list, try tag page
     if (!articleUrl) {
@@ -79,19 +89,23 @@ exports.handler = async (event) => {
         max_tokens: 1024,
         system: `You are a professional financial translator specializing in Thai capital markets.
 
-You will receive HTML from a Thai financial news article. Extract the SET Index closing data and market commentary, then translate into an English digest.
+You will receive HTML from a Thai financial news article about the Thai stock market closing. Translate the content directly into an English digest — do NOT summarize, paraphrase, or add your own commentary.
 
 CRITICAL OUTPUT RULES:
-- Output ONLY three plain paragraphs. No preamble, no explanation.
+- Output ONLY three plain paragraphs. No preamble, no "I found...", no explanation.
 - Start immediately with "The SET Index closed on..."
 - Three paragraphs separated by a blank line. No headers, no bullets, no markdown.
+- Translate DIRECTLY from the article text. Do not add, infer, or generalize anything not explicitly stated.
 
-Paragraph 1: "The SET Index closed on [Day Month, Year] at [price] points, [up/down] [change] points ([+/-percentage]%), with a trading value of approximately THB [value] million."
-Paragraph 2: What drove the market that day. 2–4 sentences.
-Paragraph 3: Forward-looking commentary. 2–4 sentences.
+Paragraph 1 (Data — translate directly): "The SET Index closed on [Day Month, Year] at [price] points, [up/down] [change] points ([+/-percentage]%), with a trading value of approximately THB [value] million."
 
-Style: formal yet accessible, spell out abbreviations on first use, use THB for Baht.
-If no relevant data found, output exactly: NO_DATA_TODAY`,
+Paragraph 2 (Market drivers — translate directly from analyst quotes and article body): Translate what the article explicitly states about WHY the market moved — exact analyst commentary, specific catalysts, sector rotation details, named sectors, geopolitical developments as written in the article.
+
+Paragraph 3 (Outlook — translate directly from article): Translate what the article explicitly states about what to watch — specific events, Fed meeting, named persons, support/resistance levels, probability figures mentioned in the article.
+
+Style: formal yet accessible, spell out abbreviations on first use e.g. Memorandum of Understanding (MOU), use THB for Baht.
+NEVER make up or generalize — only translate what is explicitly in the article.
+If no closing session data found, output exactly: NO_DATA_TODAY`,
         messages: [{
           role: "user",
           content: `Translate this Thai stock market article into the English digest format:\n\n${articleHtml.slice(0, 6000)}`
