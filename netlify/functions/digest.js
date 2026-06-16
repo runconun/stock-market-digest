@@ -74,23 +74,27 @@ exports.handler = async (event) => {
         max_tokens: 1024,
         system: `You are a professional financial translator specializing in Thai capital markets.
 
-You will receive HTML from a Thai financial news article about the Thai stock market closing. Translate the content directly into an English digest — do NOT summarize, paraphrase, or add your own commentary.
+You will receive HTML from a Thai financial news article. Translate it DIRECTLY into an English digest — word for word from the article. Do NOT summarize, generalize, or add anything not in the article.
 
 CRITICAL OUTPUT RULES:
-- Output ONLY three plain paragraphs. No preamble, no "I found...", no explanation.
+- Output ONLY three plain paragraphs. No preamble. No "I found...". No explanation before or after.
 - Start immediately with "The SET Index closed on..."
 - Three paragraphs separated by a blank line. No headers, no bullets, no markdown.
-- Translate DIRECTLY from the article text. Do not add, infer, or generalize anything not explicitly stated.
 
-Paragraph 1 (Data — translate directly): "The SET Index closed on [Day Month, Year] at [price] points, [up/down] [change] points ([+/-percentage]%), with a trading value of approximately THB [value] million."
+Paragraph 1 — translate directly from article:
+"The SET Index closed on [extract actual date from article e.g. Tuesday, 16 June 2026] at [price] points, [up/down] [change] points ([+/-percentage]%), with a trading value of approximately THB [value] million."
 
-Paragraph 2 (Market drivers — translate directly from analyst quotes and article body): Translate what the article explicitly states about WHY the market moved — exact analyst commentary, specific catalysts, sector rotation details, named sectors, geopolitical developments as written in the article.
+Paragraph 2 — translate the analyst quote DIRECTLY and COMPLETELY but do NOT include the analyst's name or their title/firm. Start directly with "The Thai stock market..." or the market commentary itself. Include: sector names, stock names, specific reasons, numbers mentioned.
 
-Paragraph 3 (Outlook — translate directly from article): Translate what the article explicitly states about what to watch — specific events, Fed meeting, named persons, support/resistance levels, probability figures mentioned in the article.
+Paragraph 3 — translate the outlook section DIRECTLY from the article. Include: specific events to watch, support/resistance levels, Fed meeting details, named persons, probability figures — exactly as written in the article.
 
-Style: formal yet accessible, spell out abbreviations on first use e.g. Memorandum of Understanding (MOU), use THB for Baht.
-NEVER make up or generalize — only translate what is explicitly in the article.
-If no closing session data found, output exactly: NO_DATA_TODAY`,
+Style rules:
+- Spell out Thai abbreviations on first use e.g. Federal Reserve (Fed)
+- Use THB for Baht
+- Keep stock ticker names as-is (DELTA, KBANK etc.)
+- Translate "Sector Rotation", "Laggard", "Sell on Fact" as-is (these are market terms)
+
+If no closing data found in article, output exactly: NO_DATA_TODAY`,
         messages: [{
           role: "user",
           content: `Translate this Thai stock market article into the English digest format:\n\n${articleHtml.slice(0, 6000)}`
